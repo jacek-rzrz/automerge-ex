@@ -1,0 +1,44 @@
+name: CI
+on: [pull_request, push]
+jobs:
+  mix_test:
+    name: mix test (Elixir ${{ matrix.elixir }} OTP ${{ matrix.otp }})
+    strategy:
+      matrix:
+        elixir: ['1.7.4', '1.11.2']
+        include:
+          - elixir: '1.7.4'
+            otp: '19.x'
+          - elixir: '1.11.2'
+            otp: '23.x'
+    runs-on: ubuntu-16.04
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/cache@v1
+        with:
+          path: deps
+          key: ${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-mix-${{ hashFiles(format('{0}{1}', github.workspace, '/mix.lock')) }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-
+      - uses: actions/cache@v1
+        with:
+          path: _build
+          key: ${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-build-${{ hashFiles(format('{0}{1}', github.workspace, '/mix.lock')) }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-
+      - uses: actions/setup-elixir@v1
+        with:
+          otp-version: ${{ matrix.otp }}
+          elixir-version: ${{ matrix.elixir }}
+      - name: Install Dependencies
+        run: mix deps.get
+      - name: Run Credo
+        run: mix credo
+      - name: Check Formatted
+        run: mix format --check-formatted
+      - name: Check unused deps
+        run: mix deps.unlock --check-unused
+      - name: Check warnings
+        run: MIX_ENV=test mix do compile --warnings-as-errors
+      - name: Run tests
+        run: mix test --exclude not_implemented
